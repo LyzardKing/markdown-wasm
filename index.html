@@ -47,10 +47,13 @@
       <section id="articles-panel" class="panel">
         <div class="panel-header">
           <h2>Articles</h2>
-          <label id="upload-area" class="btn" title="Upload DOCX files">
-            + Upload DOCX
-            <input type="file" id="file-input" accept=".docx,.odt" multiple hidden />
-          </label>
+          <div class="panel-actions">
+            <label id="upload-area" class="btn" title="Upload DOCX files">
+              + Upload DOCX
+              <input type="file" id="file-input" accept=".docx,.odt" multiple hidden />
+            </label>
+            <button id="btn-export-issue" class="btn" title="Export all articles as ZIP">Export issue</button>
+          </div>
         </div>
         <ul id="article-list">
           <li class="placeholder">Select or create an issue to get started.</li>
@@ -63,7 +66,7 @@
           <h2 id="editor-title">Edit Article</h2>
           <div class="panel-actions">
             <button id="btn-save-md" class="btn-secondary">Save</button>
-            <button id="btn-generate" class="btn-primary">Generate outputs ▶</button>
+            <button id="btn-generate" class="btn-secondary">Go to PDF ▶</button>
           </div>
         </div>
 
@@ -85,12 +88,19 @@
       <section id="output-panel" class="panel hidden">
         <div class="panel-header">
           <h2>Outputs</h2>
-          <button id="btn-back-editor" class="btn-secondary">← Back to editor</button>
+          <div class="panel-actions">
+            <button id="btn-regenerate" class="btn-primary hidden">Regenerate</button>
+            <button id="btn-back-editor" class="btn-secondary">← Back to editor</button>
+          </div>
         </div>
 
         <div id="output-log" class="log-box"></div>
 
         <div id="output-downloads" class="download-list"></div>
+
+        <div id="output-pdf" class="pdf-viewer hidden">
+          <iframe id="pdf-frame" loading="lazy"></iframe>
+        </div>
       </section>
 
     </main>

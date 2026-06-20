@@ -323,5 +323,22 @@ main#main {
 
 #spinner-msg { font-size: 13px; color: var(--muted); }
 
+/* ── PDF viewer ── */
+.pdf-viewer {
+  flex: 1;
+  min-height: 0;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+
+.pdf-viewer iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
 /* ── Utilities ── */
 .hidden { display: none !important; }

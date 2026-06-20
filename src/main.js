@@ -5,6 +5,8 @@
  * IndexedDB operations and the conversion pipeline.
  */
 
+import JSZip from 'jszip'
+
 import * as db from './db.js'
 import {
   createMarkdownEditor,
@@ -44,9 +46,10 @@ const currentIssueInfo  = $('current-issue-info')
 const currentIssueTitle = $('current-issue-title')
 const currentIssueMeta  = $('current-issue-meta')
 
-const articlesPanel  = $('articles-panel')
-const articleList    = $('article-list')
-const fileInput      = $('file-input')
+const articlesPanel   = $('articles-panel')
+const articleList     = $('article-list')
+const fileInput       = $('file-input')
+const btnExportIssue  = $('btn-export-issue')
 
 const editorPanel  = $('editor-panel')
 const editorTitle  = $('editor-title')
@@ -62,6 +65,9 @@ const btnGenerate  = $('btn-generate')
 const outputPanel     = $('output-panel')
 const outputLog       = $('output-log')
 const outputDownloads = $('output-downloads')
+const outputPdf       = $('output-pdf')
+const pdfFrame        = $('pdf-frame')
+const btnRegenerate   = $('btn-regenerate')
 const btnBackEditor   = $('btn-back-editor')
 
 const spinner    = $('spinner')
@@ -349,6 +355,12 @@ async function selectArticle(articleOrId) {
   console.log('[selectArticle] fetched:', article?.name, '| status:', article?.status, '| markdown length:', article?.markdown?.length)
   if (!article) return
 
+  // Revoke old PDF blob URL
+  if (state._pdfUrl) {
+    URL.revokeObjectURL(state._pdfUrl)
+    state._pdfUrl = null
+  }
+
   state.currentArticle = article
   renderArticleList()
 
@@ -359,6 +371,23 @@ async function selectArticle(articleOrId) {
   articlesPanel.classList.remove('hidden')
   editorPanel.classList.remove('hidden')
   outputPanel.classList.add('hidden')
+
+  // Show cached PDF directly if available
+  if (article.pdf) {
+    editorPanel.classList.add('hidden')
+    outputPanel.classList.remove('hidden')
+    outputLog.innerHTML = ''
+    outputLog.classList.add('hidden')
+    outputDownloads.innerHTML = ''
+
+    const pdfBlob = new Blob([article.pdf], { type: 'application/pdf' })
+    const url = URL.createObjectURL(pdfBlob)
+    pdfFrame.src = url
+    outputPdf.classList.remove('hidden')
+    btnRegenerate.textContent = 'Regenerate'
+    btnRegenerate.classList.remove('hidden')
+    state._pdfUrl = url
+  }
 }
 
 btnSaveMd.addEventListener('click', async () => {
@@ -366,31 +395,42 @@ btnSaveMd.addEventListener('click', async () => {
   await db.updateArticle(state.currentArticle.id, {
     yaml: getContent(yamlView),
     markdown: getContent(mdView),
+    updatedAt: Date.now(),
   })
   state.currentArticle = await db.getArticle(state.currentArticle.id)
-  // Brief visual feedback
   btnSaveMd.textContent = 'Saved ✓'
   setTimeout(() => { btnSaveMd.textContent = 'Save' }, 1500)
 })
 
-// ── Stage 2 + 3: Generate outputs ────────────────────────────────────────────
+// ── Pipeline (compile LaTeX → PDF) ────────────────────────────────────────────
 
-btnGenerate.addEventListener('click', async () => {
+async function runPipeline() {
   if (!state.currentArticle || !state.currentIssue) return
 
   // Save current editor state first
   await db.updateArticle(state.currentArticle.id, {
     yaml: getContent(yamlView),
     markdown: getContent(mdView),
+    updatedAt: Date.now(),
   })
   state.currentArticle = await db.getArticle(state.currentArticle.id)
 
-  // Switch to output panel
+  // Ensure we're in the output panel
   articlesPanel.classList.remove('hidden')
   editorPanel.classList.add('hidden')
   outputPanel.classList.remove('hidden')
+
+  // Reset output for fresh compilation
   outputLog.innerHTML = ''
+  outputLog.classList.remove('hidden')
   outputDownloads.innerHTML = ''
+  outputPdf.classList.add('hidden')
+  pdfFrame.src = ''
+  btnRegenerate.classList.add('hidden')
+  if (state._pdfUrl) {
+    URL.revokeObjectURL(state._pdfUrl)
+    state._pdfUrl = null
+  }
 
   const log = (msg, type = '') => {
     const span = document.createElement('span')
@@ -443,6 +483,8 @@ btnGenerate.addEventListener('click', async () => {
       )
       log('  LaTeX generated.', 'ok')
       addDownload(article.name + '.tex', latex, 'text/x-tex', '📄 .tex')
+      // Cache LaTeX in DB for export
+      await db.updateArticle(article.id, { tex: latex }).catch(() => {})
     } catch (err) {
       log(`  LaTeX failed: ${err.message}`, 'err')
       throw err
@@ -456,8 +498,17 @@ btnGenerate.addEventListener('click', async () => {
     try {
       const pdf = await compileLaTeXToPDF(latex, mediaAdditional, log)
       log('  PDF compiled.', 'ok')
+      // Cache PDF in DB for export
+      await db.updateArticle(article.id, { pdf, generatedAt: Date.now() }).catch(() => {})
+      // Show PDF inline and collapse log
       const pdfBlob = new Blob([pdf], { type: 'application/pdf' })
-      addDownloadBlob(article.name + '.pdf', pdfBlob, '📕 .pdf')
+      const url = URL.createObjectURL(pdfBlob)
+      pdfFrame.src = url
+      outputLog.classList.add('hidden')
+      outputPdf.classList.remove('hidden')
+      btnRegenerate.textContent = 'Regenerate'
+      btnRegenerate.classList.remove('hidden')
+      state._pdfUrl = url
     } catch (err) {
       log(`  PDF failed: ${err.message}`, 'err')
       // Don't rethrow — LaTeX is still available
@@ -470,7 +521,55 @@ btnGenerate.addEventListener('click', async () => {
   } finally {
     document.getElementById('inline-progress')?.remove()
   }
+}
+
+// ── Go to PDF (navigate to output panel) ─────────────────────────────────────
+
+btnGenerate.addEventListener('click', async () => {
+  if (!state.currentArticle || !state.currentIssue) return
+
+  // Save current editor state
+  await db.updateArticle(state.currentArticle.id, {
+    yaml: getContent(yamlView),
+    markdown: getContent(mdView),
+    updatedAt: Date.now(),
+  })
+  state.currentArticle = await db.getArticle(state.currentArticle.id)
+
+  // Revoke old PDF blob URL
+  if (state._pdfUrl) {
+    URL.revokeObjectURL(state._pdfUrl)
+    state._pdfUrl = null
+  }
+
+  // Switch to output panel
+  articlesPanel.classList.remove('hidden')
+  editorPanel.classList.add('hidden')
+  outputPanel.classList.remove('hidden')
+  outputLog.innerHTML = ''
+  outputDownloads.innerHTML = ''
+  outputPdf.classList.add('hidden')
+  pdfFrame.src = ''
+
+  // Show cached PDF or generate prompt
+  if (state.currentArticle.pdf) {
+    outputLog.classList.add('hidden')
+    const pdfBlob = new Blob([state.currentArticle.pdf], { type: 'application/pdf' })
+    const url = URL.createObjectURL(pdfBlob)
+    pdfFrame.src = url
+    outputPdf.classList.remove('hidden')
+    btnRegenerate.textContent = 'Regenerate'
+    btnRegenerate.classList.remove('hidden')
+    state._pdfUrl = url
+  } else {
+    outputLog.textContent = 'No PDF yet. Click Generate to start compilation.\n'
+    outputLog.classList.remove('hidden')
+    btnRegenerate.textContent = 'Generate'
+    btnRegenerate.classList.remove('hidden')
+  }
 })
+
+btnRegenerate.addEventListener('click', runPipeline)
 
 function addDownload(filename, content, mime, label) {
   const blob = new Blob([content], { type: mime })
@@ -491,6 +590,81 @@ btnBackEditor.addEventListener('click', () => {
   outputPanel.classList.add('hidden')
   editorPanel.classList.remove('hidden')
 })
+
+// ── Export issue ──────────────────────────────────────────────────────────────
+
+function sanitizeFilename(name) {
+  return name.replace(/[<>:"/\\|?*]/g, '_').trim()
+}
+
+async function exportIssue() {
+  const issue = state.currentIssue
+  if (!issue) return
+
+  const articles = state.articles.filter(a => a.status === 'ready')
+  if (articles.length === 0) {
+    alert('No articles to export.')
+    return
+  }
+
+  // Reload from DB to get cached pdf/tex
+  const all = await Promise.all(articles.map(a => db.getArticle(a.id)))
+
+  // Check that every article has a cached PDF and is not stale
+  const missing = all.filter(a => !a.pdf)
+  if (missing.length > 0) {
+    const names = missing.map(a => `"${a.name}"`).join(', ')
+    alert(`Cannot export — PDF missing for: ${names}. Open each article and run Generate first.`)
+    return
+  }
+
+  const stale = all.filter(a => {
+    if (!a.updatedAt) return false
+    if (!a.generatedAt) return true
+    return a.updatedAt > a.generatedAt
+  })
+  if (stale.length > 0) {
+    const names = stale.map(a => `"${a.name}"`).join(', ')
+    if (!confirm(`PDF is outdated for: ${names}. Content was modified after the last compilation. Export anyway?`))
+      return
+  }
+
+  showSpinner('Preparing export…')
+
+  const zip = new JSZip()
+  const safe = sanitizeFilename(issue.issuedisplay || `issue-${issue.id}`)
+  const root = zip.folder(safe)
+
+  for (const article of all) {
+    const dirName = sanitizeFilename(article.name)
+    const dir = root.folder(dirName)
+
+    // Markdown
+    const mdContent = `${article.yaml}\n\n${article.markdown}`
+    dir.file(`${dirName}.md`, mdContent)
+
+    // LaTeX (cached only)
+    if (article.tex) dir.file(`${dirName}.tex`, article.tex)
+
+    // PDF (cached, guaranteed to exist by the check above)
+    dir.file(`${dirName}.pdf`, article.pdf)
+  }
+
+  spinnerMsg.textContent = 'Creating ZIP…'
+  const blob = await zip.generateAsync({ type: 'blob' })
+  hideSpinner()
+
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${safe}.zip`
+  a.click()
+  URL.revokeObjectURL(url)
+
+  console.log(`Exported ${all.length} article(s)`)
+}
+
+btnExportIssue.addEventListener('click', exportIssue)
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 

@@ -23,8 +23,6 @@ urlcolor: DarkBlue
 
 nopdftoc: true
 
-fontfamily: times
-
 localization:
   accepted: "Accepted"
   acknowledgements: "Acknowledgements"

@@ -499,6 +499,24 @@ async function init() {
   // Start loading TeX Live data packages in the background immediately so
   // they are ready (and cached in IndexedDB) before the user hits Generate.
   warmupBusytex().catch(() => {/* ignore background errors */})
+
+  // Production API exposed on window for console-based testing.
+  // Usage: testTex(`\\documentclass{article}\\begin{document}Hello\\end{document}`)
+  window.testTex = async (latex) => {
+    const logs = []
+    const onLog = msg => { logs.push(msg); console.log('[tex]', msg) }
+    try {
+      const pdf = await compileLaTeXToPDF(latex, [], onLog)
+      console.log('✓ PDF compiled, size:', pdf.byteLength)
+      const url = URL.createObjectURL(new Blob([pdf], { type: 'application/pdf' }))
+      window.open(url)
+      return { ok: true, pdf, logs }
+    } catch (err) {
+      console.error('✗ PDF failed:', err.message)
+      console.error('Log:\n' + logs.join('\n'))
+      return { ok: false, error: err.message, logs }
+    }
+  }
 }
 
 init()

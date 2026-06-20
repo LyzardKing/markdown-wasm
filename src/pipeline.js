@@ -11,9 +11,10 @@
  *   Uses texlyre-busytex XeLaTeX (runs entirely in-browser)
  */
 
-import journalYaml  from './templates/journal.yaml?raw'
-import abstractLua  from './templates/abstract-section.lua?raw'
-import articleLatex from './templates/article.latex?raw'
+import journalYaml    from './templates/journal.yaml?raw'
+import abstractLua    from './templates/abstract-section.lua?raw'
+import articleLatex   from './templates/article.latex?raw'
+import texgyretermesSty from './templates/texgyretermes.sty?raw'
 
 // ── Lazy-loaded WASM modules ─────────────────────────────────────────────────
 // Both are imported lazily to avoid loading multi-MB WASM on page start.
@@ -78,7 +79,7 @@ async function getIconPackages() {
 // Assets are served from /core/busytex/ (downloaded via `npm run setup`).
 
 // TeX Gyre Termes OTFs — fetched once from /core/busytex/fonts/, injected
-// into every XeLaTeX compile so fontspec can find them with Path=./
+// at the root of every XeLaTeX compile alongside main.tex.
 const TERMES_FONTS = [
   'texgyretermes-regular.otf',
   'texgyretermes-bold.otf',
@@ -92,7 +93,7 @@ async function getTermesFiles() {
   _termesFiles = await Promise.all(
     TERMES_FONTS.map(async name => {
       const buf = await (await fetch(`${BASE}${name}`)).arrayBuffer()
-      return { path: `fonts/${name}`, contents: new Uint8Array(buf) }
+      return { path: name, contents: new Uint8Array(buf) }
     })
   )
   return _termesFiles
@@ -348,6 +349,7 @@ export async function compileLaTeXToPDF(latexSource, additionalFiles, onLog) {
   const files = [
     { path: 'main.tex', contents: latexSource },
     ...(additionalFiles || []).map(f => ({ path: f.path, contents: f.contents })),
+    { path: 'texgyretermes.sty', contents: texgyretermesSty },
     ...termesFiles,
     ...iconFiles,
   ]

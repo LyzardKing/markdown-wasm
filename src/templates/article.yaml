@@ -1,0 +1,65 @@
+---
+# be respectful of spacings, the dash identify each authors block
+author:
+  - name: "Name Surname" # mandatory
+    given-name: Name # including second name
+    surname: Surname
+    # affiliation: "Affiliation (country)" # mandatory, country in rounded brackets; multiple affiliations should be listed, see the example below; do not put text outside the upper brackets
+    institute:
+      - 1
+    email: "example@email.org"
+    corresp: true
+    orcid: https://orcid.org/0000-0002-1825-0097 # express it as a full URI, starting with https://
+    bio: "This is a short bio, _italics_ and **bold**. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Etiam auctor blandit egestas. Maecenas faucibus eros velit, vitae posuere metus tincidunt et. In vel justo sed ante iaculis facilisis a quis sapien. Nulla lacinia eu massa pharetra sollicitudin. Pellentesque tempor elit sit amet libero fermentum commodo. In hac habitasse platea dictumst. Suspendisse ornare cursus enim in condimentum. Mauris blandit leo metus, quis pretium turpis porta ac. Maecenas placerat metus ac massa condimentum, vitae tristique nunc sagittis. Nullam dapibus in tortor sit amet bibendum. Proin sem libero, porta a pharetra auctor, iaculis at elit." # optional short bio, no more than 100 words; markdown ok, not paragraphs
+
+  # the following is a 2nd author block; please add as many copies of this block as the number of authors. Note the absence of "corresp" parameter
+  - name: "Name Surname" # mandatory
+    given-name: Name
+    surname: Surname
+    institute:
+      - 1
+      - 2
+    email: "example@email.org"
+
+institute:
+  - id: 1
+    name: University of Bologna, Italy
+  - id: 2
+    name: University of Foo, Bar
+
+article:
+  #doi: # insert the DOI here, without the prefix "https://doi.org/"
+  section: "Essays" # the displayed name of the article section
+  type: "article" # possible options are: `article`, `editorial`, `review`, `book-review`
+  peer-review: true
+
+copyright:
+  holder: "Name Surname, Name Surname" # mandatory
+  year: 2024 # mandatory
+  type: open-access # journal based, do not edit
+  text: "This work is licensed under the Creative Commons BY License."
+  link: https://creativecommons.org/licenses/by/4.0/ # journal based, do not edit
+
+# language
+lang: en-US # mandatory: en-US, en-GB, it-IT...
+
+# page numbering
+page:
+  # prefix: draft # uncomment and fill if you need a prefix for the page sequence (eg: reviews could use a "p. R 12")
+  #roman: true # uncomment if you need the page numbers in Roman numbers, eg: for Editorial; change to "romanup" for UPPERCASE roman numbers
+  start: 1 # edit to determine the starting page for this article
+
+# set to true to avoid the page break after title / abstract / author info
+notitlepage: true
+
+# set to true to avoid author blocks, affiliation will appear in footnote
+affiliationonly: true
+
+# Table of Contents: set to "false" if there should be no Table of Contents in HTML (eg: few and short sections)
+toc: false
+
+abstract-section:
+  section-identifiers:
+    - abstract
+    - keywords
+---

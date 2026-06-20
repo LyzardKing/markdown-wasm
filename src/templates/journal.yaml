@@ -1,0 +1,38 @@
+---
+journal:
+  title: "i-lex -- Rivista di Scienze Giuridiche, Scienze Cognitive ed Intelligenza Artificiale"
+  abbrev-title: "i-lex"
+  eissn: "1825-1927"
+  url: "https://i-lex.unibo.it/"
+
+papersize: a4
+geometry:
+    - a4paper
+    - headheight=20pt
+    - bottom=100pt
+    - left=1.25in
+    - right=1.25in
+
+documentclass: article
+
+colorlinks: true
+link-citations: true
+linkcolor: DarkBlue
+citecolor: DarkBlue
+urlcolor: DarkBlue
+
+nopdftoc: true
+
+fontfamily: times
+
+localization:
+  accepted: "Accepted"
+  acknowledgements: "Acknowledgements"
+  corresp: "Contact"
+  keywords: "Keywords"
+  peer-reviewed: "peer-reviewed"
+  published: "Published"
+  revised: "Revised version"
+  submitted: "Submitted"
+  tableofcontent: "Table of Contents"
+---

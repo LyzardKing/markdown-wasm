@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Markdown Workflow</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- Sidebar: issue management -->
+    <aside id="sidebar">
+      <h1>Markdown Workflow</h1>
+
+      <section id="issue-section">
+        <h2>Issues</h2>
+        <ul id="issue-list"></ul>
+        <button id="btn-new-issue">+ New Issue</button>
+      </section>
+
+      <!-- New issue form (hidden by default) -->
+      <form id="issue-form" class="hidden">
+        <h3>New Issue</h3>
+        <label>Volume <input type="text" name="volume" placeholder="18" required /></label>
+        <label>Issue <input type="text" name="issue" placeholder="2" required /></label>
+        <label>Year <input type="text" name="year" placeholder="2025" required /></label>
+        <label>Display
+          <input type="text" name="issuedisplay" id="issuedisplay" placeholder='Vol. 18 n. 2 (2025)' />
+        </label>
+        <div class="form-actions">
+          <button type="submit">Create</button>
+          <button type="button" id="btn-cancel-issue">Cancel</button>
+        </div>
+      </form>
+
+      <div id="current-issue-info" class="hidden">
+        <h3 id="current-issue-title"></h3>
+        <p id="current-issue-meta"></p>
+      </div>
+    </aside>
+
+    <!-- Main content area -->
+    <main id="main">
+
+      <!-- Articles panel -->
+      <section id="articles-panel" class="panel">
+        <div class="panel-header">
+          <h2>Articles</h2>
+          <label id="upload-area" class="btn" title="Upload DOCX files">
+            + Upload DOCX
+            <input type="file" id="file-input" accept=".docx,.odt" multiple hidden />
+          </label>
+        </div>
+        <ul id="article-list">
+          <li class="placeholder">Select or create an issue to get started.</li>
+        </ul>
+      </section>
+
+      <!-- Editor panel -->
+      <section id="editor-panel" class="panel hidden">
+        <div class="panel-header">
+          <h2 id="editor-title">Edit Article</h2>
+          <div class="panel-actions">
+            <button id="btn-save-md" class="btn-secondary">Save</button>
+            <button id="btn-generate" class="btn-primary">Generate outputs ▶</button>
+          </div>
+        </div>
+
+        <div id="editor-tabs">
+          <button class="tab-btn active" data-tab="markdown">Markdown</button>
+          <button class="tab-btn" data-tab="metadata">Metadata (YAML)</button>
+        </div>
+
+        <div id="tab-markdown" class="tab-content">
+          <div id="md-editor"></div>
+        </div>
+
+        <div id="tab-metadata" class="tab-content hidden">
+          <div id="yaml-editor"></div>
+        </div>
+      </section>
+
+      <!-- Output panel -->
+      <section id="output-panel" class="panel hidden">
+        <div class="panel-header">
+          <h2>Outputs</h2>
+          <button id="btn-back-editor" class="btn-secondary">← Back to editor</button>
+        </div>
+
+        <div id="output-log" class="log-box"></div>
+
+        <div id="output-downloads" class="download-list"></div>
+      </section>
+
+    </main>
+
+  </div>
+
+  <!-- Overlay spinner -->
+  <div id="spinner" class="hidden">
+    <div class="spinner-inner">
+      <div class="spinner-ring"></div>
+      <p id="spinner-msg">Processing…</p>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

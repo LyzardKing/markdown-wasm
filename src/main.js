@@ -367,6 +367,7 @@ async function selectArticle(articleOrId) {
   editorTitle.textContent = article.name
   setContent(yamlView, article.yaml ?? '')
   setContent(mdView, article.markdown ?? '')
+  renderImagesTab(article)
 
   articlesPanel.classList.remove('hidden')
   editorPanel.classList.remove('hidden')
@@ -387,6 +388,61 @@ async function selectArticle(articleOrId) {
     btnRegenerate.textContent = 'Regenerate'
     btnRegenerate.classList.remove('hidden')
     state._pdfUrl = url
+  }
+}
+
+// ── Images tab ────────────────────────────────────────────────────────────────
+
+const imagesContainer = $('images-container')
+
+function renderImagesTab(article) {
+  if (state._imageUrls) {
+    for (const u of state._imageUrls) URL.revokeObjectURL(u)
+  }
+  state._imageUrls = []
+  imagesContainer.innerHTML = ''
+  const media = article.mediaFiles ?? {}
+  const entries = Object.entries(media)
+  if (entries.length === 0) {
+    imagesContainer.innerHTML = '<div class="image-empty">No images extracted from the document.</div>'
+    return
+  }
+  for (const [path, blob] of entries) {
+    const card = document.createElement('div')
+    card.className = 'image-card'
+
+    const url = URL.createObjectURL(blob)
+    state._imageUrls.push(url)
+    const img = document.createElement('img')
+    img.src = url
+    card.appendChild(img)
+
+    const name = document.createElement('div')
+    name.className = 'image-name'
+    name.textContent = path
+    card.appendChild(name)
+
+    const replaceInput = document.createElement('input')
+    replaceInput.type = 'file'
+    replaceInput.accept = 'image/*'
+    replaceInput.hidden = true
+
+    const replaceBtn = document.createElement('button')
+    replaceBtn.className = 'image-replace-btn'
+    replaceBtn.textContent = 'Replace'
+    replaceBtn.addEventListener('click', () => replaceInput.click())
+
+    replaceInput.addEventListener('change', async () => {
+      const file = replaceInput.files?.[0]
+      if (!file) return
+      article.mediaFiles[path] = file
+      await db.updateArticle(article.id, { mediaFiles: article.mediaFiles })
+      renderImagesTab(article)
+    })
+
+    card.appendChild(replaceInput)
+    card.appendChild(replaceBtn)
+    imagesContainer.appendChild(card)
   }
 }
 
@@ -465,7 +521,7 @@ async function runPipeline() {
       if (blob instanceof Blob) {
         mediaResources.push({ filename: path, contents: blob })
         const buf = await blob.arrayBuffer()
-        mediaAdditional.push({ path, content: new Uint8Array(buf) })
+        mediaAdditional.push({ path, contents: new Uint8Array(buf) })
       }
     }
 
@@ -648,6 +704,16 @@ async function exportIssue() {
 
     // PDF (cached, guaranteed to exist by the check above)
     dir.file(`${dirName}.pdf`, article.pdf)
+
+    // Media files (images extracted from the source document)
+    const mediaEntries = Object.entries(article.mediaFiles ?? {})
+    if (mediaEntries.length > 0) {
+      const mediaDir = dir.folder('media')
+      for (const [path, blob] of mediaEntries) {
+        const name = path.replace(/^media\//, '')
+        mediaDir.file(name, blob)
+      }
+    }
   }
 
   spinnerMsg.textContent = 'Creating ZIP…'

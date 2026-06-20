@@ -236,6 +236,53 @@ main#main {
   flex-direction: column;
 }
 
+#images-container {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-content: flex-start;
+}
+
+.image-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px;
+  background: var(--surface);
+}
+.image-card img {
+  max-width: 200px;
+  max-height: 150px;
+  object-fit: contain;
+  border-radius: 4px;
+}
+.image-card .image-name {
+  font-size: 11px;
+  color: var(--muted);
+  word-break: break-all;
+  text-align: center;
+  max-width: 200px;
+}
+.image-card .image-replace-btn {
+  font-size: 11px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+.image-empty {
+  color: var(--muted);
+  font-size: 13px;
+  padding: 24px;
+  text-align: center;
+  width: 100%;
+}
+
 /* ── Output panel ── */
 .log-box {
   background: #0f172a;

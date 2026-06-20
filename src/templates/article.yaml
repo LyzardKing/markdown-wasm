@@ -1,4 +1,9 @@
 ---
+
+title: "Title of the article" # mandatory
+# subtitle: "Subtitle of the article" # optional
+
+
 # be respectful of spacings, the dash identify each authors block
 author:
   - name: "Name Surname" # mandatory

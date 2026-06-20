@@ -1,0 +1,10 @@
+node_modules
+dist
+
+# busytex WASM assets (downloaded via npm run setup)
+public/core/busytex/*.js
+public/core/busytex/*.data
+public/core/busytex/*.wasm
+
+# icon packages (downloaded via npm run setup)
+public/core/busytex/extras/

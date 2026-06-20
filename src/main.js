@@ -24,6 +24,8 @@ import {
   mediaMapToResources,
 } from './pipeline.js'
 import articleYamlTemplate from './templates/article.yaml?raw'
+import Sortable from 'sortablejs'
+
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -150,6 +152,7 @@ function renderIssueList() {
   }
 }
 
+
 async function selectIssue(issue) {
   state.currentIssue = issue
   state.currentArticle = null
@@ -187,6 +190,51 @@ function statusLabel(status) {
   return map[status] ?? ['Unknown', 'status-pending']
 }
 
+function getPageStart(yaml) {
+  const m = yaml?.match(/\s+start:\s*(\d+)/)
+  return m ? parseInt(m[1], 10) : null
+}
+
+/**
+ * Watch the PDF viewer iframe for a span with the total page count
+ * (rendered by the browser's built-in PDF viewer once the PDF loads),
+ * then persist the page count and refresh the article list.
+ *
+ * Chrome uses #totalPages, Firefox uses #numPages.  Polls until a value
+ * stabilises (3 identical reads) so we skip the initial "1" placeholder.
+ */
+/**
+ * Read page count from the PDF viewer's DOM (span#numPages in Firefox,
+ * span#totalPages in Chrome).  Waits for the iframe to load first.
+ * Silently no-ops if the viewer DOM is inaccessible (e.g. Chrome).
+ */
+function watchPageCountFromViewer(iframe, article) {
+  const tryRead = () => {
+    try {
+      const doc = iframe.contentDocument
+      if (!doc) return false
+      const el = doc.getElementById('numPages') || doc.getElementById('totalPages')
+      if (!el) return false
+      const n = parseInt(el.textContent.match(/\d+/)?.[0], 10)
+      if (!n) return false
+      if (n !== article.pageCount) {
+        article.pageCount = n
+        db.updateArticle(article.id, { pageCount: n }).catch(() => {})
+        renderArticleList()
+      }
+      return true
+    } catch { return false }
+  }
+
+  // Wait for the load event, then poll for the element
+  iframe.addEventListener('load', () => {
+    let attempts = 0
+    const poll = setInterval(() => {
+      if (tryRead() || ++attempts > 30) clearInterval(poll)
+    }, 400)
+  }, { once: true })
+}
+
 function renderArticleList() {
   articleList.innerHTML = ''
 
@@ -200,18 +248,37 @@ function renderArticleList() {
     return
   }
 
+  let prevEnd = null
   for (const article of state.articles) {
     const li = document.createElement('li')
     li.className = 'article-item'
     li.dataset.id = article.id
     if (state.currentArticle?.id === article.id) li.classList.add('active')
 
-    const [label, cls] = statusLabel(article.status)
+    let [label, cls] = statusLabel(article.status)
+    let pageLabel = article.pageCount ? `${article.pageCount}p` : ''
+
+    // Check page continuity for ready articles with a known page count
+    if (article.status === 'ready' && article.pageCount) {
+      const pageStart = getPageStart(article.yaml)
+      if (pageStart !== null) {
+        pageLabel = `${pageStart}–${pageStart + article.pageCount - 1}`
+        if (prevEnd !== null && pageStart !== prevEnd + 1) {
+          label = 'Page Number'
+          cls = 'status-page-warn'
+        }
+        prevEnd = pageStart + article.pageCount - 1
+      } else {
+        prevEnd = null
+      }
+    }
 
     li.innerHTML = `
-      <span class="article-name" title="${article.name}">${article.name}</span>
-      <span class="article-status ${cls}">${label}</span>
-      <button class="article-delete" title="Delete article" data-id="${article.id}">×</button>
+  <span class="article-handle" style="cursor: grab; margin-right: 8px; color: #999;">⋮</span>
+  <span class="article-name" title="${article.name}">${article.name}</span>
+  ${pageLabel ? `<span class="article-pages">${pageLabel}</span>` : ''}
+  <span class="article-status ${cls}">${label}</span>
+  <button class="article-delete" title="Delete article" data-id="${article.id}">×</button>
     `
 
     li.querySelector('.article-name, .article-status').addEventListener('click', () => {
@@ -238,6 +305,33 @@ function renderArticleList() {
 
     articleList.appendChild(li)
   }
+// ── Initialize SortableJS ──────────────────────────────────────────────────
+  new Sortable(articleList, {
+    handle: '.article-handle', // Limits dragging exclusively to the handle
+    animation: 150,
+    onEnd: async () => {
+      // 1. Grab the article IDs in their brand new visual order from the DOM
+      const reorderedIds = Array.from(articleList.children).map(li => Number(li.dataset.id))
+      
+      // 2. Re-arrange our local in-memory state array to match this exact sequence
+      state.articles.sort((a, b) => reorderedIds.indexOf(a.id) - reorderedIds.indexOf(b.id))
+      
+      // 3. Save the new order persistently to IndexedDB
+      // (Assumes your db.js file supports an order update, detailed below!)
+      if (typeof db.updateArticlesOrder === 'function') {
+        await db.updateArticlesOrder(reorderedIds)
+      } else {
+        // Fallback: update sequentially if your db layer only has individual updates
+        let index = 0
+        for (const id of reorderedIds) {
+          await db.updateArticle(id, { sortOrder: index++ })
+        }
+      }
+
+      // 4. Re-render to cleanly recalculate page sequence warnings (status-page-warn)
+      renderArticleList()
+    }
+  })
 }
 
 // ── File upload → Stage 1 conversion ─────────────────────────────────────────
@@ -388,6 +482,8 @@ async function selectArticle(articleOrId) {
     btnRegenerate.textContent = 'Regenerate'
     btnRegenerate.classList.remove('hidden')
     state._pdfUrl = url
+    // Try viewer (works in Firefox); silently no-ops in Chrome
+    watchPageCountFromViewer(pdfFrame, article)
   }
 }
 
@@ -552,10 +648,12 @@ async function runPipeline() {
     setProgress('Compiling PDF (XeLaTeX)…')
 
     try {
-      const pdf = await compileLaTeXToPDF(latex, mediaAdditional, log)
+      const { pdf, pageCount } = await compileLaTeXToPDF(latex, mediaAdditional, log)
       log('  PDF compiled.', 'ok')
       // Cache PDF in DB for export
-      await db.updateArticle(article.id, { pdf, generatedAt: Date.now() }).catch(() => {})
+      await db.updateArticle(article.id, { pdf, pageCount, generatedAt: Date.now() }).catch(() => {})
+      article.pageCount = pageCount
+      renderArticleList()
       // Show PDF inline and collapse log
       const pdfBlob = new Blob([pdf], { type: 'application/pdf' })
       const url = URL.createObjectURL(pdfBlob)
@@ -746,7 +844,7 @@ async function init() {
     const logs = []
     const onLog = msg => { logs.push(msg); console.log('[tex]', msg) }
     try {
-      const pdf = await compileLaTeXToPDF(latex, [], onLog)
+      const { pdf } = await compileLaTeXToPDF(latex, [], onLog)
       console.log('✓ PDF compiled, size:', pdf.byteLength)
       const url = URL.createObjectURL(new Blob([pdf], { type: 'application/pdf' }))
       window.open(url)

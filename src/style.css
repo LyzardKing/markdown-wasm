@@ -180,7 +180,31 @@ main#main {
 #article-list li.article-item:hover { border-color: var(--accent); }
 #article-list li.article-item.active { border-color: var(--accent); background: #eff6ff; }
 
+.article-handle {
+  cursor: grab;
+  color: var(--muted);
+  font-weight: bold;
+  padding: 4px;
+  user-select: none; /* Prevents text highlighting while dragging */
+}
+
+.article-handle:active {
+  cursor: grabbing;
+}
+
+/* Visually dims the placeholder space where the item will land */
+.sortable-ghost {
+  opacity: 0.3;
+}
+
 .article-name { font-weight: 500; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.article-pages {
+  font-size: 11px;
+  color: var(--text-light, #888);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
 
 .article-status {
   font-size: 11px;
@@ -189,9 +213,10 @@ main#main {
   font-weight: 600;
   flex-shrink: 0;
 }
-.status-pending  { background: #fef3c7; color: #92400e; }
-.status-ready    { background: #d1fae5; color: #065f46; }
-.status-error    { background: #fee2e2; color: #991b1b; }
+.status-pending    { background: #fef3c7; color: #92400e; }
+.status-ready      { background: #d1fae5; color: #065f46; }
+.status-error      { background: #fee2e2; color: #991b1b; }
+.status-page-warn  { background: #fef3c7; color: #92400e; }
 .status-converting { background: #dbeafe; color: #1e40af; }
 
 .article-delete {

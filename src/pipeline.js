@@ -389,8 +389,15 @@ export async function compileLaTeXToPDF(latexSource, additionalFiles, onLog) {
           return
         }
 
-        onLog?.('─── PDF compiled successfully. ───')
-        resolve(data.pdf)
+        // Extract page count from xelatex log: "Output written on main.xdv (N pages, ...)"
+        const logSample = data.log?.slice(-2000)
+        console.log('[pageCount] log tail:', logSample)
+        const pagesMatch = data.log?.match(/\((\d+)\s+pages?/)
+        console.log('[pageCount] match:', pagesMatch?.[0], 'captured:', pagesMatch?.[1])
+        const pageCount = pagesMatch ? parseInt(pagesMatch[1], 10) : null
+        console.log('[pageCount] extracted:', pageCount)
+        onLog?.(pageCount ? `─── PDF compiled successfully: ${pageCount} pages. ───` : '─── PDF compiled successfully. ───')
+        resolve({ pdf: data.pdf, pageCount })
       },
       reject: (err) => {
         clearTimeout(timeout)

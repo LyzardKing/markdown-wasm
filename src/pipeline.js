@@ -378,6 +378,17 @@ export async function compileLaTeXToPDF(latexSource, additionalFiles, onLog) {
           return
         }
 
+        // BusyTeX error detection only checks stdout against a short whitelist
+        // of patterns, missing many common LaTeX errors (e.g. ! LaTeX Error,
+        // ! TeX capacity exceeded, ! Package ... Error).  These errors cause
+        // XeLaTeX to exit with a partial XDV but exit_code is reset to 0,
+        // resulting in a silently truncated PDF.  Scan the log defensively.
+        if (data.log && /^!\s/m.test(data.log)) {
+          const errLine = data.log.match(/^!\s.*/m)
+          reject(new Error(`LaTeX error detected in log: ${errLine?.[0] ?? 'unknown'}`))
+          return
+        }
+
         onLog?.('─── PDF compiled successfully. ───')
         resolve(data.pdf)
       },

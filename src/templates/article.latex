@@ -413,7 +413,9 @@ $endif$
   \let\Begin\begin
   \let\End\end
 }
-%\usepackage{soul}
+% \ul used by pandoc \href{url}{\ul{text}} in footnotes; soul/soulutf8 not
+% available in BusyTeX's TeX Live subset, so define it via \underline instead.
+\providecommand{\ul}[1]{\underline{#1}}
 % custom: define \linethickness
 \renewcommand{\linethickness}{0.3pt}
 % custom: draft mark with date

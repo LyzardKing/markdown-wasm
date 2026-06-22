@@ -37,6 +37,7 @@
       <div id="current-issue-info" class="hidden">
         <h3 id="current-issue-title"></h3>
         <p id="current-issue-meta"></p>
+        <button id="btn-edit-issue" class="btn-secondary" style="font-size:12px;margin-top:6px;padding:4px 8px">Edit issue info</button>
       </div>
     </aside>
 
@@ -53,6 +54,8 @@
               <input type="file" id="file-input" accept=".docx,.odt" multiple hidden />
             </label>
             <button id="btn-export-issue" class="btn" title="Export all articles as ZIP">Export issue</button>
+            <button id="btn-import-issue" class="btn" title="Import articles from a ZIP file">Import issue</button>
+            <input type="file" id="import-file-input" accept=".zip" hidden />
           </div>
         </div>
         <ul id="article-list">

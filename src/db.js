@@ -71,6 +71,15 @@ export async function createIssue(data) {
   return promisify(store.add({ ...data, createdAt: Date.now() }))
 }
 
+export async function updateIssue(id, patch) {
+  const store = await tx('issues', 'readwrite')
+  const issue = await promisify(store.get(id))
+  if (!issue) throw new Error(`Issue ${id} not found`)
+  const updated = { ...issue, ...patch }
+  await promisify(store.put(updated))
+  return updated
+}
+
 export async function deleteIssue(id) {
   // Also delete all articles belonging to this issue
   const articles = await getArticlesByIssue(id)

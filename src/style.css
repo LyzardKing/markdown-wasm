@@ -60,10 +60,28 @@ aside#sidebar h3 { font-size: 13px; font-weight: 600; color: #f1f5f9; margin-bot
   font-size: 13px;
   color: #cbd5e1;
   transition: background .15s;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
 }
 
 #issue-list li:hover { background: #334155; }
 #issue-list li.active { background: var(--accent); color: #fff; font-weight: 600; }
+#issue-list li span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.issue-delete {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.issue-delete:hover { background: #fee2e2; color: var(--danger); }
 
 #btn-new-issue {
   width: 100%;

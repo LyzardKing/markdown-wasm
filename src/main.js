@@ -51,7 +51,10 @@ const currentIssueMeta  = $('current-issue-meta')
 const articlesPanel   = $('articles-panel')
 const articleList     = $('article-list')
 const fileInput       = $('file-input')
+const btnEditIssue    = $('btn-edit-issue')
 const btnExportIssue  = $('btn-export-issue')
+const btnImportIssue  = $('btn-import-issue')
+const importFileInput = $('import-file-input')
 
 const editorPanel  = $('editor-panel')
 const editorTitle  = $('editor-title')
@@ -123,16 +126,43 @@ function updateIssueDisplay() {
   issueForm.elements[name].addEventListener('input', updateIssueDisplay)
 })
 
+// ── Edit issue ────────────────────────────────────────────────────────────────
+
+let _editingIssueId = null
+
+btnEditIssue.addEventListener('click', () => {
+  const issue = state.currentIssue
+  if (!issue) return
+
+  _editingIssueId = issue.id
+  issueForm.elements['volume'].value = issue.volume || ''
+  issueForm.elements['issue'].value = issue.issue || ''
+  issueForm.elements['year'].value = issue.year || ''
+  issueForm.elements['issuedisplay'].value = issue.issuedisplay || ''
+  issueForm.querySelector('button[type="submit"]').textContent = 'Update'
+  issueForm.classList.remove('hidden')
+})
+
 issueForm.addEventListener('submit', async (e) => {
   e.preventDefault()
   const data = Object.fromEntries(new FormData(issueForm))
   if (!data.issuedisplay) {
     data.issuedisplay = `Vol. ${data.volume} n. ${data.issue} (${data.year})`
   }
-  await db.createIssue(data)
+
+  if (_editingIssueId) {
+    await db.updateIssue(_editingIssueId, data)
+    state.currentIssue = await db.getIssue(_editingIssueId)
+    _editingIssueId = null
+  } else {
+    await db.createIssue(data)
+  }
+
   issueForm.reset()
   issueForm.classList.add('hidden')
+  issueForm.querySelector('button[type="submit"]').textContent = 'Create'
   await loadIssues()
+  if (state.currentIssue) selectIssue(state.currentIssue)
 })
 
 async function loadIssues() {
@@ -144,14 +174,45 @@ function renderIssueList() {
   issueList.innerHTML = ''
   for (const issue of state.issues) {
     const li = document.createElement('li')
-    li.textContent = issue.issuedisplay || `${issue.year} – ${issue.volume}/${issue.issue}`
     li.dataset.id = issue.id
     if (state.currentIssue?.id === issue.id) li.classList.add('active')
+
+    const span = document.createElement('span')
+    span.textContent = issue.issuedisplay || `${issue.year} – ${issue.volume}/${issue.issue}`
+    li.appendChild(span)
+
+    const del = document.createElement('button')
+    del.className = 'issue-delete'
+    del.textContent = '×'
+    del.title = 'Delete issue'
+    del.addEventListener('click', async (e) => {
+      e.stopPropagation()
+      if (!confirm(`Delete issue "${issue.issuedisplay}" and all its articles?`)) return
+      await db.deleteIssue(issue.id)
+      if (state.currentIssue?.id === issue.id) {
+        state.currentIssue = null
+        state.currentArticle = null
+        currentIssueInfo.classList.add('hidden')
+        articlesPanel.classList.add('hidden')
+        editorPanel.classList.add('hidden')
+        outputPanel.classList.add('hidden')
+      }
+      await loadIssues()
+    })
+    li.appendChild(del)
+
     li.addEventListener('click', () => selectIssue(issue))
     issueList.appendChild(li)
   }
 }
 
+
+function updateCurrentIssueInfo() {
+  const issue = state.currentIssue
+  if (!issue) return
+  currentIssueTitle.textContent = issue.issuedisplay
+  currentIssueMeta.textContent = `Vol. ${issue.volume}, n. ${issue.issue} (${issue.year})`
+}
 
 async function selectIssue(issue) {
   state.currentIssue = issue
@@ -161,8 +222,7 @@ async function selectIssue(issue) {
 
   // Update sidebar info
   currentIssueInfo.classList.remove('hidden')
-  currentIssueTitle.textContent = issue.issuedisplay
-  currentIssueMeta.textContent = `Vol. ${issue.volume}, n. ${issue.issue} (${issue.year})`
+  updateCurrentIssueInfo()
 
   // Show articles panel, hide others
   articlesPanel.classList.remove('hidden')
@@ -829,6 +889,127 @@ async function exportIssue() {
 }
 
 btnExportIssue.addEventListener('click', exportIssue)
+
+// ── Import issue ───────────────────────────────────────────────────────────────
+
+btnImportIssue.addEventListener('click', () => importFileInput.click())
+
+importFileInput.addEventListener('change', async (e) => {
+  const file = e.target.files?.[0]
+  if (!file) return
+  importFileInput.value = ''
+
+  showSpinner('Importing issue…')
+
+  try {
+    const zip = await JSZip.loadAsync(file)
+    const entries = Object.keys(zip.files)
+
+    if (entries.length === 0) {
+      alert('ZIP file is empty.')
+      return
+    }
+
+    // Detect whether entries are wrapped in a single top-level issue folder
+    // (as produced by the export function).  Don't rely on directory markers
+    // — many ZIP creators omit them.  Look at actual path structure instead.
+    const topNames = new Set()
+    for (const p of entries) {
+      const parts = p.split('/').filter(Boolean)
+      if (parts.length >= 2) topNames.add(parts[0])
+    }
+
+    let issueDisplayName, articleEntries
+
+    if (topNames.size === 1) {
+      // Single top-level directory — the issue-folder wrapper from export.
+      // Strip the prefix so the relative path starts at the article folder.
+      issueDisplayName = [...topNames][0]
+      const prefix = issueDisplayName + '/'
+      articleEntries = entries
+        .filter(p => p.startsWith(prefix) && p !== prefix)
+        .map(p => ({ full: p, relative: p.slice(prefix.length) }))
+    } else {
+      // Flat or unrecognised structure — treat all entries as articles
+      issueDisplayName = file.name.replace(/\.zip$/i, '')
+      articleEntries = entries.map(p => ({ full: p, relative: p }))
+    }
+
+    // Group entries by article folder (first component of relative path)
+    const articleFolders = new Map()
+    for (const entry of articleEntries) {
+      const parts = entry.relative.split('/').filter(Boolean)
+      if (parts.length === 0) continue
+      const articleDir = parts[0]
+      if (!articleFolders.has(articleDir)) articleFolders.set(articleDir, [])
+      articleFolders.get(articleDir).push(entry)
+    }
+
+    // Create the issue
+    const issueId = await db.createIssue({
+      volume: '',
+      issue: '',
+      year: '',
+      issuedisplay: issueDisplayName,
+    })
+
+    let importedCount = 0
+
+    for (const [dirName, files] of articleFolders) {
+      const article = {
+        issueId,
+        name: dirName,
+        yaml: '',
+        markdown: '',
+        mediaFiles: {},
+        status: 'ready',
+        tex: null,
+        pdf: null,
+      }
+
+      for (const { full: fullPath, relative } of files) {
+        const fileParts = relative.slice(dirName.length + 1).split('/').filter(Boolean)
+        const fileName = fileParts[fileParts.length - 1]
+        if (!fileName) continue
+
+        if (fileName.endsWith('.md')) {
+          const content = await zip.files[fullPath].async('string')
+          const { yaml, body } = splitFrontmatter(content)
+          article.yaml = yaml
+          article.markdown = body
+        } else if (fileName.endsWith('.tex')) {
+          article.tex = await zip.files[fullPath].async('string')
+        } else if (fileName.endsWith('.pdf')) {
+          const buf = await zip.files[fullPath].async('uint8array')
+          article.pdf = buf
+        } else if (fileParts[0] === 'media') {
+          const blob = await zip.files[fullPath].async('blob')
+          article.mediaFiles[`media/${fileName}`] = blob
+        }
+      }
+
+      // Only create if we got at least some content
+      if (article.markdown || article.pdf) {
+        await db.createArticle(article)
+        importedCount++
+      }
+    }
+
+    hideSpinner()
+
+    // Select the new issue
+    await loadIssues()
+    const newIssue = state.issues.find(i => i.id === issueId)
+    if (newIssue) await selectIssue(newIssue)
+
+    alert(`Imported ${importedCount} article(s) into "${issueDisplayName}".`)
+
+  } catch (err) {
+    hideSpinner()
+    console.error('[import] error:', err)
+    alert(`Import failed: ${err.message}`)
+  }
+})
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 

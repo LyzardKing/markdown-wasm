@@ -67,7 +67,17 @@ async function getIconPackages() {
   const BASE = new URL('/core/busytex/extras/', window.location.href).href
   _iconFiles = await Promise.all(
     ICON_FILES.map(async ({ src, dst }) => {
-      const buf = await (await fetch(`${BASE}${src}`)).arrayBuffer()
+      let buf = await (await fetch(`${BASE}${src}`)).arrayBuffer()
+      // XeTeX's kpathsea doesn't search the current directory for OpenType fonts
+      // by default.  Patch .fd files to use ./ so injected files are found.
+      if (dst.endsWith('.fd')) {
+        const text = new TextDecoder().decode(buf)
+        const patched = text.replace(
+          /\\UnicodeFontFile\{([^}]+)\}/g,
+          '\\UnicodeFontFile{./$1}'
+        )
+        buf = new TextEncoder().encode(patched).buffer
+      }
       return { path: dst, contents: new Uint8Array(buf) }
     })
   )

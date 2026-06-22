@@ -98,7 +98,9 @@ export async function deleteIssue(id) {
 export async function getArticlesByIssue(issueId) {
   const store = await tx('articles')
   const index = store.index('issueId')
-  return promisify(index.getAll(issueId))
+  const articles = await promisify(index.getAll(issueId))
+  articles.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+  return articles
 }
 
 export async function getArticle(id) {
@@ -108,7 +110,7 @@ export async function getArticle(id) {
 
 export async function createArticle(data) {
   const store = await tx('articles', 'readwrite')
-  return promisify(store.add({ ...data, createdAt: Date.now() }))
+  return promisify(store.add({ ...data, sortOrder: Date.now(), createdAt: Date.now() }))
 }
 
 export async function updateArticle(id, patch) {
@@ -123,6 +125,17 @@ export async function updateArticle(id, patch) {
 export async function deleteArticle(id) {
   const store = await tx('articles', 'readwrite')
   return promisify(store.delete(id))
+}
+
+export async function updateArticlesOrder(ids) {
+  const store = await tx('articles', 'readwrite')
+  for (let i = 0; i < ids.length; i++) {
+    const article = await promisify(store.get(ids[i]))
+    if (article) {
+      article.sortOrder = i
+      await promisify(store.put(article))
+    }
+  }
 }
 
 // ── Settings ─────────────────────────────────────────────────────────────────

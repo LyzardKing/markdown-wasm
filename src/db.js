@@ -9,7 +9,7 @@
  */
 
 const DB_NAME = 'markdown-workflow'
-const DB_VERSION = 1
+const DB_VERSION = 2
 
 let _db = null
 
@@ -21,6 +21,10 @@ function openDB() {
 
     req.onupgradeneeded = (e) => {
       const db = e.target.result
+
+      if (!db.objectStoreNames.contains('settings')) {
+        db.createObjectStore('settings', { keyPath: 'key' })
+      }
 
       if (!db.objectStoreNames.contains('issues')) {
         const issueStore = db.createObjectStore('issues', { keyPath: 'id', autoIncrement: true })
@@ -119,4 +123,16 @@ export async function updateArticle(id, patch) {
 export async function deleteArticle(id) {
   const store = await tx('articles', 'readwrite')
   return promisify(store.delete(id))
+}
+
+// ── Settings ─────────────────────────────────────────────────────────────────
+
+export async function getSettings() {
+  const store = await tx('settings')
+  return promisify(store.get('journal'))
+}
+
+export async function saveSettings(data) {
+  const store = await tx('settings', 'readwrite')
+  return promisify(store.put({ key: 'journal', ...data }))
 }

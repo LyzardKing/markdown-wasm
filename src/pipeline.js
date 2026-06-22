@@ -280,13 +280,14 @@ export async function convertDocxToMarkdown(file, onLog) {
  * @param {function} onLog
  * @returns {Promise<string>} LaTeX source
  */
-export async function convertMarkdownToLatex(markdownWithFrontmatter, issueYaml, extraFiles, onLog) {
+export async function convertMarkdownToLatex(markdownWithFrontmatter, issueYaml, extraFiles, onLog, journalYamlOverride) {
   await ensurePandoc()
   onLog?.('Generating LaTeX via pandoc…')
 
   // Merge metadata: pandoc processes YAML blocks in document order.
   // issueYaml is built without --- delimiters, so wrap it in one.
-  const fullInput = `${journalYaml}\n---\n${issueYaml}\n---\n\n${markdownWithFrontmatter}`
+  const baseYaml = journalYamlOverride ?? journalYaml
+  const fullInput = `${baseYaml}\n---\n${issueYaml}\n---\n\n${markdownWithFrontmatter}`
 
   const options = {
     from: 'markdown',

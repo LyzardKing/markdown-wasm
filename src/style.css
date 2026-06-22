@@ -430,5 +430,37 @@ main#main {
   display: block;
 }
 
+/* ── Modal ── */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(15, 23, 42, .85);
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-card {
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 28px 32px;
+  min-width: 480px;
+  max-width: 640px;
+  max-height: 80vh;
+  display: flex; flex-direction: column; gap: 16px;
+}
+.modal-card h2 { margin: 0; font-size: 16px; color: #f1f5f9; }
+.modal-desc { margin: 0; font-size: 13px; color: var(--muted); }
+.settings-textarea {
+  width: 100%;
+  min-height: 300px;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 13px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #1e293b;
+  color: #e2e8f0;
+  resize: vertical;
+  tab-size: 2;
+}
+.settings-textarea:focus { outline: none; border-color: var(--accent); }
+
 /* ── Utilities ── */
 .hidden { display: none !important; }

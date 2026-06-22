@@ -24,6 +24,43 @@ import {
   mediaMapToResources,
 } from './pipeline.js'
 import articleYamlTemplate from './templates/article.yaml?raw'
+
+const blankJournalYaml = `---
+journal:
+  title: ""
+  abbrev-title: ""
+  eissn: ""
+  url: ""
+
+papersize: a4
+geometry:
+    - a4paper
+    - headheight=20pt
+    - bottom=100pt
+    - left=1.25in
+    - right=1.25in
+
+documentclass: article
+
+colorlinks: true
+link-citations: true
+linkcolor: DarkBlue
+citecolor: DarkBlue
+urlcolor: DarkBlue
+
+nopdftoc: true
+
+localization:
+  accepted: "Accepted"
+  acknowledgements: "Acknowledgements"
+  corresp: "Contact"
+  keywords: "Keywords"
+  peer-reviewed: "peer-reviewed"
+  published: "Published"
+  revised: "Revised version"
+  submitted: "Submitted"
+  tableofcontent: "Table of Contents"
+---`
 import Sortable from 'sortablejs'
 
 
@@ -34,6 +71,7 @@ const state = {
   currentIssue: null,
   articles: [],
   currentArticle: null,
+  journalYaml: null,
 }
 
 // ── DOM refs ─────────────────────────────────────────────────────────────────
@@ -52,6 +90,11 @@ const articlesPanel   = $('articles-panel')
 const articleList     = $('article-list')
 const fileInput       = $('file-input')
 const btnEditIssue    = $('btn-edit-issue')
+const btnSettings     = $('btn-settings')
+const settingsModal   = $('settings-modal')
+const settingsYaml    = $('settings-yaml')
+const btnSettingsSave = $('btn-settings-save')
+const btnSettingsCancel = $('btn-settings-cancel')
 const btnExportIssue  = $('btn-export-issue')
 const btnImportIssue  = $('btn-import-issue')
 const importFileInput = $('import-file-input')
@@ -691,7 +734,8 @@ async function runPipeline() {
         markdownWithFrontmatter,
         issueYaml,
         mediaResources,
-        log
+        log,
+        state.journalYaml
       )
       log('  LaTeX generated.', 'ok')
       addDownload(article.name + '.tex', latex, 'text/x-tex', '📄 .tex')
@@ -1011,9 +1055,63 @@ importFileInput.addEventListener('change', async (e) => {
   }
 })
 
+// ── Settings modal ────────────────────────────────────────────────────────────
+
+function openSettings(settingsYamlText) {
+  settingsYaml.value = settingsYamlText
+  settingsModal.classList.remove('hidden')
+  settingsYaml.focus()
+}
+
+function closeSettings() {
+  settingsModal.classList.add('hidden')
+}
+
+btnSettings.addEventListener('click', async () => {
+  openSettings(state.journalYaml ?? blankJournalYaml)
+})
+
+btnSettingsSave.addEventListener('click', async () => {
+  const yaml = settingsYaml.value.trim()
+  if (!yaml) return
+  state.journalYaml = yaml
+  await db.saveSettings({ yaml })
+  closeSettings()
+})
+
+btnSettingsCancel.addEventListener('click', closeSettings)
+
+// Close on Escape or overlay click
+settingsModal.addEventListener('click', (e) => {
+  if (e.target === settingsModal) closeSettings()
+})
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !settingsModal.classList.contains('hidden')) closeSettings()
+})
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 async function init() {
+  // Load journal settings from DB (or prompt on first visit)
+  const saved = await db.getSettings()
+  if (saved?.yaml) {
+    state.journalYaml = saved.yaml
+  } else {
+    state.journalYaml = null
+    // First visit — show modal before anything else
+    openSettings(blankJournalYaml)
+    // Block startup until settings are saved
+    await new Promise((resolve) => {
+      const handler = () => {
+        if (state.journalYaml) {
+          btnSettingsSave.removeEventListener('click', handler)
+          resolve()
+        }
+      }
+      btnSettingsSave.addEventListener('click', handler)
+    })
+  }
+
   await loadIssues()
   // Start loading TeX Live data packages in the background immediately so
   // they are ready (and cached in IndexedDB) before the user hits Generate.

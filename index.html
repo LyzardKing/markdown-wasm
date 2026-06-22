@@ -39,6 +39,8 @@
         <p id="current-issue-meta"></p>
         <button id="btn-edit-issue" class="btn-secondary" style="font-size:12px;margin-top:6px;padding:4px 8px">Edit issue info</button>
       </div>
+
+      <button id="btn-settings" class="btn-secondary" style="font-size:12px;margin-top:12px;padding:4px 8px;width:100%">⚙ Journal Settings</button>
     </aside>
 
     <!-- Main content area -->
@@ -113,6 +115,19 @@
 
     </main>
 
+  </div>
+
+  <!-- Settings modal -->
+  <div id="settings-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <h2>Journal Settings</h2>
+      <p class="modal-desc">Edit the base YAML metadata used for all LaTeX compilation.</p>
+      <textarea id="settings-yaml" class="settings-textarea" spellcheck="false"></textarea>
+      <div class="form-actions">
+        <button id="btn-settings-save">Save</button>
+        <button id="btn-settings-cancel">Cancel</button>
+      </div>
+    </div>
   </div>
 
   <!-- Overlay spinner -->

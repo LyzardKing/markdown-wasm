@@ -710,7 +710,10 @@ async function runPipeline() {
     const article = state.currentArticle
     const issue   = state.currentIssue
 
-    const markdownWithFrontmatter = `${article.yaml}\n\n${article.markdown}`
+    // Ensure YAML frontmatter is wrapped in --- delimiters for pandoc
+    const rawYaml = article.yaml ?? ''
+    const yamlBlock = rawYaml.trim().startsWith('---') ? rawYaml : `---\n${rawYaml}\n---`
+    const markdownWithFrontmatter = `${yamlBlock}\n\n${article.markdown}`
     const issueYaml = buildIssueYaml(issue)
 
     // Rebuild media files as pandoc resources
@@ -989,11 +992,12 @@ importFileInput.addEventListener('change', async (e) => {
       articleFolders.get(articleDir).push(entry)
     }
 
-    // Create the issue
+    // Create the issue — parse volume/issue/year from the display name when possible
+    const issueMatch = issueDisplayName.match(/^Vol\.\s*(.+?)\s*n\.\s*(.+?)\s*\((.+?)\)$/)
     const issueId = await db.createIssue({
-      volume: '',
-      issue: '',
-      year: '',
+      volume: issueMatch?.[1] ?? '',
+      issue: issueMatch?.[2] ?? '',
+      year: issueMatch?.[3] ?? '',
       issuedisplay: issueDisplayName,
     })
 
@@ -1019,7 +1023,7 @@ importFileInput.addEventListener('change', async (e) => {
         if (fileName.endsWith('.md')) {
           const content = await zip.files[fullPath].async('string')
           const { yaml, body } = splitFrontmatter(content)
-          article.yaml = yaml
+          article.yaml = `---\n${yaml}\n---`
           article.markdown = body
         } else if (fileName.endsWith('.tex')) {
           article.tex = await zip.files[fullPath].async('string')

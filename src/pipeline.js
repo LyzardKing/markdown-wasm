@@ -31,10 +31,9 @@ async function ensurePandoc() {
   _pandocLoaded = true
 }
 
-// fontawesome5 & academicons — fetched once from /core/busytex/extras/, injected
-// at the project root so kpathsea finds them via `.` in TEXINPUTS/OPENTYPEFONTS.
-// academicons uses `file:` prefix (patched in its .sty) so fontspec loads by file
-// path rather than font-family name, matching how \UnicodeFontFile works for fa5.
+// fontawesome5 fetched from /core/busytex/extras/ and injected at the project root
+// so kpathsea finds them via `.` in TEXINPUTS/OPENTYPEFONTS.
+// academicons: only ORCID is used, defined in the template via \newfontfamily.
 const ICON_FILES = [
   // fontawesome5
   { src: 'tex/fontawesome5.sty',                 dst: 'fontawesome5.sty' },
@@ -52,13 +51,7 @@ const ICON_FILES = [
   { src: 'opentype/FontAwesome5Free-Regular-400.otf', dst: 'FontAwesome5Free-Regular-400.otf' },
   { src: 'opentype/FontAwesome5Free-Solid-900.otf',   dst: 'FontAwesome5Free-Solid-900.otf' },
   { src: 'opentype/FontAwesome5Brands-Regular-400.otf', dst: 'FontAwesome5Brands-Regular-400.otf' },
-  // academicons
-  { src: 'tex/academicons.sty',                  dst: 'academicons.sty' },
-  { src: 'tex/academicons-xeluatex.tex',         dst: 'academicons-xeluatex.tex' },
-  { src: 'tex/academicons-generic.tex',          dst: 'academicons-generic.tex' },
-  { src: 'tex/tuacademicons.fd',                 dst: 'tuacademicons.fd' },
-  { src: 'tex/uacademicons.fd',                  dst: 'uacademicons.fd' },
-  { src: 'truetype/academicons.ttf',             dst: 'academicons.ttf' },
+  // academicons — only the .otf is needed (ORCID glyph loaded via \newfontfamily)
   { src: 'opentype/academicons.otf',             dst: 'academicons.otf' },
 ]
 let _iconFiles = null
@@ -195,7 +188,7 @@ async function ensureBusytex() {
     // data_packages_js: full catalog for the package resolver
     // NOTE: texlive-extra.js is deliberately omitted — it bundles TeX Live system files
     // (format, binary) from a different build and would corrupt the XeTeX format.
-    // fontawesome5 and academicons are injected as local files instead.
+    // fontawesome5 files and the academicons OTF are injected as local files instead.
     data_packages_js: [
       `${BASE}texlive-basic.js`,
       `${BASE}ubuntu-texlive-latex-recommended.js`,

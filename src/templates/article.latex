@@ -336,9 +336,11 @@ $-- Various customizations --$
                {\endlist}
 
 % custom: icons
-% Both fontawesome5 and academicons are injected into the compilation by pipeline.js
+% fontawesome5 is injected into the compilation by pipeline.js
 \usepackage{fontawesome5}
-\usepackage{academicons}
+% academicons: only the ORCID glyph is used, loaded from the injected .otf
+\newfontfamily{\academiconsfont}[Path=./,Extension=.otf,UprightFont=*]{academicons}
+\newcommand{\aiOrcid}{{\academiconsfont\symbol{"E9D9}}}
 
 % custom: dates
 \newcommand{\DTMdate}[1]{#1}%

@@ -23,7 +23,7 @@ import {
   mediaMapToAdditionalFiles,
   mediaMapToResources,
 } from './pipeline.js'
-import { splitFrontmatter, sanitizeFilename } from './utils.js'
+import { splitFrontmatter, sanitizeFilename, deriveArticleDisplayName } from './utils.js'
 import { watchPageCountFromViewer } from './pdf-viewer.js'
 import articleYamlTemplate from './templates/article.yaml?raw'
 
@@ -333,23 +333,30 @@ function renderArticleList() {
     let [label, cls] = statusLabel(article.status)
     let pageLabel = article.pageCount ? `${article.pageCount}p` : ''
 
-    // Check page continuity for ready articles with a known page count
-    if (article.status === 'ready' && article.pageCount) {
-      const pageStart = getPageStart(article.yaml)
-      if (pageStart !== null) {
-        pageLabel = `${pageStart}–${pageStart + article.pageCount - 1}`
-        if (prevEnd !== null && pageStart !== prevEnd + 1) {
-          label = 'Page Number'
-          cls = 'status-page-warn'
+    if (article.status === 'ready') {
+      if (article.pageCount) {
+        // Check page continuity
+        const pageStart = getPageStart(article.yaml)
+        if (pageStart !== null) {
+          pageLabel = `${pageStart}–${pageStart + article.pageCount - 1}`
+          if (prevEnd !== null && pageStart !== prevEnd + 1) {
+            label = 'Page Number'
+            cls = 'status-page-warn'
+          }
+          prevEnd = pageStart + article.pageCount - 1
+        } else {
+          prevEnd = null
         }
-        prevEnd = pageStart + article.pageCount - 1
       } else {
-        prevEnd = null
+        // Ready but no page count — needs compilation
+        label = 'No PDF'
+        cls = 'status-page-warn'
       }
     }
 
-    li.querySelector('.article-name').textContent = article.name
-    li.querySelector('.article-name').title = article.name
+    const displayName = deriveArticleDisplayName(article.yaml, article.name)
+    li.querySelector('.article-name').textContent = displayName
+    li.querySelector('.article-name').title = displayName
     const pagesEl = li.querySelector('.article-pages')
     if (pageLabel) {
       pagesEl.textContent = pageLabel
@@ -372,7 +379,7 @@ function renderArticleList() {
 
     li.querySelector('.article-delete').addEventListener('click', async (e) => {
       e.stopPropagation()
-      if (!confirm(`Delete "${article.name}"?`)) return
+      if (!confirm(`Delete "${displayName}"?`)) return
       await db.deleteArticle(article.id)
       if (state.currentArticle?.id === article.id) {
         state.currentArticle = null
@@ -524,7 +531,7 @@ async function selectArticle(articleOrId) {
   state.currentArticle = article
   renderArticleList()
 
-  editorTitle.textContent = article.name
+  editorTitle.textContent = deriveArticleDisplayName(article.yaml, article.name)
   setContent(yamlView, article.yaml ?? '')
   setContent(mdView, article.markdown ?? '')
   renderImagesTab(article)
@@ -599,6 +606,7 @@ function renderImagesTab(article) {
 
 btnSaveMd.addEventListener('click', async () => {
   await saveCurrentArticle()
+  await loadArticles()
   btnSaveMd.textContent = 'Saved ✓'
   setTimeout(() => { btnSaveMd.textContent = 'Save' }, 1500)
 })
@@ -682,7 +690,8 @@ async function runPipeline() {
         state.journalYaml
       )
       log('  LaTeX generated.', 'ok')
-      addDownload(article.name + '.tex', latex, 'text/x-tex', '📄 .tex')
+      const texName = sanitizeFilename(deriveArticleDisplayName(article.yaml, article.name))
+      addDownload(texName + '.tex', latex, 'text/x-tex', '📄 .tex')
       // Cache LaTeX in DB for export
       await db.updateArticle(article.id, { tex: latex }).catch(() => {})
     } catch (err) {
@@ -808,7 +817,7 @@ async function exportIssue() {
   // Check that every article has a cached PDF and is not stale
   const missing = all.filter(a => !a.pdf)
   if (missing.length > 0) {
-    const names = missing.map(a => `"${a.name}"`).join(', ')
+    const names = missing.map(a => `"${deriveArticleDisplayName(a.yaml, a.name)}"`).join(', ')
     alert(`Cannot export — PDF missing for: ${names}. Open each article and run Generate first.`)
     return
   }
@@ -819,7 +828,7 @@ async function exportIssue() {
     return a.updatedAt > a.generatedAt
   })
   if (stale.length > 0) {
-    const names = stale.map(a => `"${a.name}"`).join(', ')
+    const names = stale.map(a => `"${deriveArticleDisplayName(a.yaml, a.name)}"`).join(', ')
     if (!confirm(`PDF is outdated for: ${names}. Content was modified after the last compilation. Export anyway?`))
       return
   }
@@ -831,7 +840,7 @@ async function exportIssue() {
   const root = zip.folder(safe)
 
   for (const article of all) {
-    const dirName = sanitizeFilename(article.name)
+    const dirName = sanitizeFilename(deriveArticleDisplayName(article.yaml, article.name))
     const dir = root.folder(dirName)
 
     // Markdown

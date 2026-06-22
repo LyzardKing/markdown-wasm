@@ -240,7 +240,7 @@ export async function convertDocxToMarkdown(file, onLog) {
     wrap: 'none',
     'markdown-headings': 'atx',
     standalone: true,
-    'extract-media': 'media',
+    'extract-media': '.',
   }
 
   const files = { 'input.docx': fileBlob }

@@ -7,12 +7,19 @@
  * Also added to npm run setup in package.json.
  */
 import { execSync } from 'child_process'
-import { mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { mkdirSync, existsSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const dest = join(__dirname, '..', 'public', 'core', 'busytex', 'extras')
+
+// Skip if already present (e.g. cached from a previous build)
+if (existsSync(join(dest, 'tex', 'fontawesome5.sty'))) {
+  console.log('Icon packages already present, skipping download.')
+  process.exit(0)
+}
+
 mkdirSync(dest, { recursive: true })
 
 const TMP = '/tmp/opencode/ctan-icon-packages'
@@ -33,7 +40,7 @@ const packages = [
 
 for (const pkg of packages) {
   console.log(`Downloading ${pkg.url}...`)
-  execSync(`curl -sL -o "${pkg.zip}" "${pkg.url}"`, { stdio: 'inherit' })
+  execSync(`curl -sL --connect-timeout 30 -o "${pkg.zip}" "${pkg.url}"`, { stdio: 'inherit' })
   console.log(`Extracting ${pkg.zip}...`)
   execSync(`unzip -q -o -d "${TMP}" "${pkg.zip}"`, { stdio: 'inherit' })
 

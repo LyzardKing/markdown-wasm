@@ -1,8 +1,34 @@
 [build]
-  command = "npm run build"
+  command = "npm run setup && npm run build"
   publish = "dist"
 
-# SPA fallback — all routes serve index.html
+# Serve existing static files directly before the SPA fallback
+[[redirects]]
+  from = "/core/*"
+  to = "/core/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/assets/*"
+  to = "/assets/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/manifest.webmanifest"
+  to = "/manifest.webmanifest"
+  status = 200
+
+[[redirects]]
+  from = "/sw.js"
+  to = "/sw.js"
+  status = 200
+
+[[redirects]]
+  from = "/workbox-*"
+  to = "/workbox-:splat"
+  status = 200
+
+# SPA fallback — all other routes serve index.html
 [[redirects]]
   from = "/*"
   to = "/index.html"

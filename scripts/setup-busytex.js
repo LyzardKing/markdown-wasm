@@ -8,7 +8,7 @@
  * academicons, datetime2, microtype, etc. which the texlyre bundles lacked.
  */
 import { execSync } from 'child_process'
-import { mkdirSync } from 'fs'
+import { mkdirSync, existsSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -31,11 +31,16 @@ const files = [
   'ubuntu-texlive-latex-extra.data',
 ]
 
-for (const file of files) {
-  const url = `${base}/${file}`
-  const out = join(dest, file)
-  console.log(`Downloading ${file}...`)
-  execSync(`wget -q --show-progress -O "${out}" "${url}"`, { stdio: 'inherit' })
+// Skip download if assets already exist (e.g. cached from a previous build)
+const marker = join(dest, 'busytex_worker.js')
+if (existsSync(marker)) {
+  console.log('Assets already present, skipping download.')
+} else {
+  for (const file of files) {
+    const url = `${base}/${file}`
+    const out = join(dest, file)
+    console.log(`Downloading ${file}...`)
+    execSync(`wget -q --show-progress -O "${out}" "${url}"`, { stdio: 'inherit' })
+  }
+  console.log('\nbusytex assets downloaded to public/core/busytex/')
 }
-
-console.log('\nbusytex assets downloaded to public/core/busytex/')

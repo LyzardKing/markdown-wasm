@@ -23,6 +23,8 @@ import {
   mediaMapToAdditionalFiles,
   mediaMapToResources,
 } from './pipeline.js'
+import { splitFrontmatter, sanitizeFilename } from './utils.js'
+import { watchPageCountFromViewer } from './pdf-viewer.js'
 import articleYamlTemplate from './templates/article.yaml?raw'
 
 const blankJournalYaml = `---
@@ -132,6 +134,23 @@ function hideSpinner() {
   spinner.classList.add('hidden')
 }
 
+// ── Save helper ────────────────────────────────────────────────────────────────
+
+function patchInStateArticles(id, patch) {
+  const entry = state.articles.find(a => a.id === id)
+  if (entry) Object.assign(entry, patch)
+}
+
+async function saveCurrentArticle() {
+  if (!state.currentArticle) return
+  await db.updateArticle(state.currentArticle.id, {
+    yaml: getContent(yamlView),
+    markdown: getContent(mdView),
+    updatedAt: Date.now(),
+  })
+  state.currentArticle = await db.getArticle(state.currentArticle.id)
+}
+
 // ── Tab switching ─────────────────────────────────────────────────────────────
 
 document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -215,20 +234,14 @@ async function loadIssues() {
 
 function renderIssueList() {
   issueList.innerHTML = ''
+  const tpl = document.getElementById('tpl-issue-item')
   for (const issue of state.issues) {
-    const li = document.createElement('li')
+    const li = tpl.content.cloneNode(true).firstElementChild
     li.dataset.id = issue.id
     if (state.currentIssue?.id === issue.id) li.classList.add('active')
+    li.querySelector('.issue-name').textContent = issue.issuedisplay || `${issue.year} – ${issue.volume}/${issue.issue}`
 
-    const span = document.createElement('span')
-    span.textContent = issue.issuedisplay || `${issue.year} – ${issue.volume}/${issue.issue}`
-    li.appendChild(span)
-
-    const del = document.createElement('button')
-    del.className = 'issue-delete'
-    del.textContent = '×'
-    del.title = 'Delete issue'
-    del.addEventListener('click', async (e) => {
+    li.querySelector('.issue-delete').addEventListener('click', async (e) => {
       e.stopPropagation()
       if (!confirm(`Delete issue "${issue.issuedisplay}" and all its articles?`)) return
       await db.deleteIssue(issue.id)
@@ -242,7 +255,6 @@ function renderIssueList() {
       }
       await loadIssues()
     })
-    li.appendChild(del)
 
     li.addEventListener('click', () => selectIssue(issue))
     issueList.appendChild(li)
@@ -298,46 +310,6 @@ function getPageStart(yaml) {
   return m ? parseInt(m[1], 10) : null
 }
 
-/**
- * Watch the PDF viewer iframe for a span with the total page count
- * (rendered by the browser's built-in PDF viewer once the PDF loads),
- * then persist the page count and refresh the article list.
- *
- * Chrome uses #totalPages, Firefox uses #numPages.  Polls until a value
- * stabilises (3 identical reads) so we skip the initial "1" placeholder.
- */
-/**
- * Read page count from the PDF viewer's DOM (span#numPages in Firefox,
- * span#totalPages in Chrome).  Waits for the iframe to load first.
- * Silently no-ops if the viewer DOM is inaccessible (e.g. Chrome).
- */
-function watchPageCountFromViewer(iframe, article) {
-  const tryRead = () => {
-    try {
-      const doc = iframe.contentDocument
-      if (!doc) return false
-      const el = doc.getElementById('numPages') || doc.getElementById('totalPages')
-      if (!el) return false
-      const n = parseInt(el.textContent.match(/\d+/)?.[0], 10)
-      if (!n) return false
-      if (n !== article.pageCount) {
-        article.pageCount = n
-        db.updateArticle(article.id, { pageCount: n }).catch(() => {})
-        renderArticleList()
-      }
-      return true
-    } catch { return false }
-  }
-
-  // Wait for the load event, then poll for the element
-  iframe.addEventListener('load', () => {
-    let attempts = 0
-    const poll = setInterval(() => {
-      if (tryRead() || ++attempts > 30) clearInterval(poll)
-    }, 400)
-  }, { once: true })
-}
-
 function renderArticleList() {
   articleList.innerHTML = ''
 
@@ -353,8 +325,8 @@ function renderArticleList() {
 
   let prevEnd = null
   for (const article of state.articles) {
-    const li = document.createElement('li')
-    li.className = 'article-item'
+    const tpl = document.getElementById('tpl-article-item')
+    const li = tpl.content.cloneNode(true).firstElementChild
     li.dataset.id = article.id
     if (state.currentArticle?.id === article.id) li.classList.add('active')
 
@@ -376,13 +348,17 @@ function renderArticleList() {
       }
     }
 
-    li.innerHTML = `
-  <span class="article-handle" style="cursor: grab; margin-right: 8px; color: #999;">⋮</span>
-  <span class="article-name" title="${article.name}">${article.name}</span>
-  ${pageLabel ? `<span class="article-pages">${pageLabel}</span>` : ''}
-  <span class="article-status ${cls}">${label}</span>
-  <button class="article-delete" title="Delete article" data-id="${article.id}">×</button>
-    `
+    li.querySelector('.article-name').textContent = article.name
+    li.querySelector('.article-name').title = article.name
+    const pagesEl = li.querySelector('.article-pages')
+    if (pageLabel) {
+      pagesEl.textContent = pageLabel
+    } else {
+      pagesEl.remove()
+    }
+    const statusEl = li.querySelector('.article-status')
+    statusEl.textContent = label
+    statusEl.className = `article-status ${cls}`
 
     li.querySelector('.article-name, .article-status').addEventListener('click', () => {
       if (article.status === 'ready') selectArticle(article)
@@ -529,19 +505,6 @@ async function handleFileUpload(file) {
   }
 }
 
-/** Split a markdown string into its YAML frontmatter and body. */
-function splitFrontmatter(text) {
-  // Pandoc closes frontmatter with either --- or ...
-  // The closing delimiter may or may not be followed by a newline/content.
-  const match = text.match(/^---\r?\n([\s\S]*?)\r?\n(?:---|\.\.\.)[ \t]*\r?\n?([\s\S]*)$/s)
-  if (match) {
-    console.log('[splitFrontmatter] matched. yaml:', match[1].length, 'body:', match[2].length)
-    return { yaml: match[1], body: match[2] }
-  }
-  console.warn('[splitFrontmatter] no frontmatter found, treating entire text as body. preview:', text.slice(0, 120))
-  return { yaml: '', body: text }
-}
-
 // ── Editor ────────────────────────────────────────────────────────────────────
 
 async function selectArticle(articleOrId) {
@@ -586,7 +549,11 @@ async function selectArticle(articleOrId) {
     btnRegenerate.classList.remove('hidden')
     state._pdfUrl = url
     // Try viewer (works in Firefox); silently no-ops in Chrome
-    watchPageCountFromViewer(pdfFrame, article)
+    watchPageCountFromViewer(pdfFrame, article, (n) => {
+      db.updateArticle(article.id, { pageCount: n }).catch(() => {})
+      patchInStateArticles(article.id, { pageCount: n })
+      renderArticleList()
+    })
   }
 }
 
@@ -606,31 +573,18 @@ function renderImagesTab(article) {
     imagesContainer.innerHTML = '<div class="image-empty">No images extracted from the document.</div>'
     return
   }
+  const tpl = document.getElementById('tpl-image-card')
   for (const [path, blob] of entries) {
-    const card = document.createElement('div')
-    card.className = 'image-card'
+    const card = tpl.content.cloneNode(true).firstElementChild
 
     const url = URL.createObjectURL(blob)
     state._imageUrls.push(url)
-    const img = document.createElement('img')
-    img.src = url
-    card.appendChild(img)
+    card.querySelector('img').src = url
+    card.querySelector('.image-name').textContent = path
 
-    const name = document.createElement('div')
-    name.className = 'image-name'
-    name.textContent = path
-    card.appendChild(name)
-
-    const replaceInput = document.createElement('input')
-    replaceInput.type = 'file'
-    replaceInput.accept = 'image/*'
-    replaceInput.hidden = true
-
-    const replaceBtn = document.createElement('button')
-    replaceBtn.className = 'image-replace-btn'
-    replaceBtn.textContent = 'Replace'
+    const replaceInput = card.querySelector('input[type="file"]')
+    const replaceBtn = card.querySelector('.image-replace-btn')
     replaceBtn.addEventListener('click', () => replaceInput.click())
-
     replaceInput.addEventListener('change', async () => {
       const file = replaceInput.files?.[0]
       if (!file) return
@@ -639,20 +593,12 @@ function renderImagesTab(article) {
       renderImagesTab(article)
     })
 
-    card.appendChild(replaceInput)
-    card.appendChild(replaceBtn)
     imagesContainer.appendChild(card)
   }
 }
 
 btnSaveMd.addEventListener('click', async () => {
-  if (!state.currentArticle) return
-  await db.updateArticle(state.currentArticle.id, {
-    yaml: getContent(yamlView),
-    markdown: getContent(mdView),
-    updatedAt: Date.now(),
-  })
-  state.currentArticle = await db.getArticle(state.currentArticle.id)
+  await saveCurrentArticle()
   btnSaveMd.textContent = 'Saved ✓'
   setTimeout(() => { btnSaveMd.textContent = 'Save' }, 1500)
 })
@@ -662,13 +608,8 @@ btnSaveMd.addEventListener('click', async () => {
 async function runPipeline() {
   if (!state.currentArticle || !state.currentIssue) return
 
-  // Save current editor state first
-  await db.updateArticle(state.currentArticle.id, {
-    yaml: getContent(yamlView),
-    markdown: getContent(mdView),
-    updatedAt: Date.now(),
-  })
-  state.currentArticle = await db.getArticle(state.currentArticle.id)
+    // Save current editor state first
+    await saveCurrentArticle()
 
   // Ensure we're in the output panel
   articlesPanel.classList.remove('hidden')
@@ -697,9 +638,8 @@ async function runPipeline() {
 
   // Use a small inline progress indicator instead of the full-screen spinner
   // so the log remains visible throughout
-  const progressEl = document.createElement('div')
-  progressEl.id = 'inline-progress'
-  progressEl.innerHTML = '<span class="spinner-ring" style="width:16px;height:16px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:8px"></span><span id="inline-progress-msg">Starting…</span>'
+  const progressTpl = document.getElementById('tpl-inline-progress')
+  const progressEl = progressTpl.content.cloneNode(true).firstElementChild
   outputPanel.querySelector('.panel-header').appendChild(progressEl)
   const setProgress = (msg) => {
     const el = document.getElementById('inline-progress-msg')
@@ -721,9 +661,10 @@ async function runPipeline() {
     const mediaAdditional = []
     for (const [path, blob] of Object.entries(article.mediaFiles ?? {})) {
       if (blob instanceof Blob) {
-        mediaResources.push({ filename: path, contents: blob })
+        const filename = path.replace(/^media\/(media\/)+/, 'media/')
+        mediaResources.push({ filename, contents: blob })
         const buf = await blob.arrayBuffer()
-        mediaAdditional.push({ path, contents: new Uint8Array(buf) })
+        mediaAdditional.push({ path: filename, contents: new Uint8Array(buf) })
       }
     }
 
@@ -760,6 +701,7 @@ async function runPipeline() {
       // Cache PDF in DB for export
       await db.updateArticle(article.id, { pdf, pageCount, generatedAt: Date.now() }).catch(() => {})
       article.pageCount = pageCount
+      patchInStateArticles(article.id, { pageCount })
       renderArticleList()
       // Show PDF inline and collapse log
       const pdfBlob = new Blob([pdf], { type: 'application/pdf' })
@@ -790,12 +732,7 @@ btnGenerate.addEventListener('click', async () => {
   if (!state.currentArticle || !state.currentIssue) return
 
   // Save current editor state
-  await db.updateArticle(state.currentArticle.id, {
-    yaml: getContent(yamlView),
-    markdown: getContent(mdView),
-    updatedAt: Date.now(),
-  })
-  state.currentArticle = await db.getArticle(state.currentArticle.id)
+  await saveCurrentArticle()
 
   // Revoke old PDF blob URL
   if (state._pdfUrl) {
@@ -839,11 +776,12 @@ function addDownload(filename, content, mime, label) {
 
 function addDownloadBlob(filename, blob, label) {
   const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.className = 'download-btn'
+  const tpl = document.getElementById('tpl-download-btn')
+  const a = tpl.content.cloneNode(true).firstElementChild
   a.href = url
   a.download = filename
-  a.innerHTML = `<span class="icon">${label.split(' ')[0]}</span> Download ${label.split(' ').slice(1).join(' ')} — ${filename}`
+  a.querySelector('.icon').textContent = label.split(' ')[0]
+  a.querySelector('.download-label').textContent = `Download ${label.split(' ').slice(1).join(' ')} — ${filename}`
   outputDownloads.appendChild(a)
 }
 
@@ -853,10 +791,6 @@ btnBackEditor.addEventListener('click', () => {
 })
 
 // ── Export issue ──────────────────────────────────────────────────────────────
-
-function sanitizeFilename(name) {
-  return name.replace(/[<>:"/\\|?*]/g, '_').trim()
-}
 
 async function exportIssue() {
   const issue = state.currentIssue
@@ -915,7 +849,7 @@ async function exportIssue() {
     if (mediaEntries.length > 0) {
       const mediaDir = dir.folder('media')
       for (const [path, blob] of mediaEntries) {
-        const name = path.replace(/^media\//, '')
+        const name = path.replace(/^(media\/)+/, '')
         mediaDir.file(name, blob)
       }
     }

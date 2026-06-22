@@ -261,10 +261,13 @@ export async function convertDocxToMarkdown(file, onLog) {
   console.log('[convertDocxToMarkdown] stdout length:', markdown.length, '| warnings:', result.warnings?.length ?? 0)
   console.log('[convertDocxToMarkdown] files keys:', Object.keys(result.files ?? {}))
 
-  // Collect extracted media files (images etc.) from result.mediaFiles
+  // Normalize double media/ prefix from pandoc
+  const normalizedMarkdown = markdown.replace(/media\/media\//g, 'media/')
+
   const mediaFilesMap = new Map()
   for (const [path, blob] of Object.entries(result.mediaFiles ?? {})) {
-    mediaFilesMap.set(path, blob instanceof Blob ? blob : new Blob([blob]))
+    const normalizedPath = path.replace(/^media\/media\//, 'media/')
+    mediaFilesMap.set(normalizedPath, blob instanceof Blob ? blob : new Blob([blob]))
   }
 
   onLog?.(`Done. markdown length: ${markdown.length}, extracted ${mediaFilesMap.size} media file(s).`)

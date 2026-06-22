@@ -138,6 +138,47 @@
     </div>
   </div>
 
+  <!-- Templates -->
+  <template id="tpl-issue-item">
+    <li>
+      <span class="issue-name"></span>
+      <button class="issue-delete" title="Delete issue">×</button>
+    </li>
+  </template>
+
+  <template id="tpl-article-item">
+    <li class="article-item">
+      <span class="article-handle"></span>
+      <span class="article-name"></span>
+      <span class="article-pages"></span>
+      <span class="article-status"></span>
+      <button class="article-delete" title="Delete article">×</button>
+    </li>
+  </template>
+
+  <template id="tpl-download-btn">
+    <a class="download-btn">
+      <span class="icon"></span>
+      <span class="download-label"></span>
+    </a>
+  </template>
+
+  <template id="tpl-image-card">
+    <div class="image-card">
+      <img>
+      <div class="image-name"></div>
+      <input type="file" accept="image/*" hidden>
+      <button class="image-replace-btn">Replace</button>
+    </div>
+  </template>
+
+  <template id="tpl-inline-progress">
+    <div id="inline-progress">
+      <span class="spinner-ring" style="width:16px;height:16px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:8px"></span>
+      <span id="inline-progress-msg">Starting…</span>
+    </div>
+  </template>
+
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

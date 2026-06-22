@@ -200,14 +200,19 @@ main#main {
 
 .article-handle {
   cursor: grab;
-  color: var(--muted);
+  color: #999;
   font-weight: bold;
   padding: 4px;
-  user-select: none; /* Prevents text highlighting while dragging */
+  margin-right: 8px;
+  user-select: none;
 }
 
 .article-handle:active {
   cursor: grabbing;
+}
+
+.article-handle::before {
+  content: "⋮";
 }
 
 /* Visually dims the placeholder space where the item will land */

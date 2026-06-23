@@ -391,33 +391,6 @@ function renderArticleList() {
 
     articleList.appendChild(li)
   }
-// ── Initialize SortableJS ──────────────────────────────────────────────────
-  new Sortable(articleList, {
-    handle: '.article-handle', // Limits dragging exclusively to the handle
-    animation: 150,
-    onEnd: async () => {
-      // 1. Grab the article IDs in their brand new visual order from the DOM
-      const reorderedIds = Array.from(articleList.children).map(li => Number(li.dataset.id))
-      
-      // 2. Re-arrange our local in-memory state array to match this exact sequence
-      state.articles.sort((a, b) => reorderedIds.indexOf(a.id) - reorderedIds.indexOf(b.id))
-      
-      // 3. Save the new order persistently to IndexedDB
-      // (Assumes your db.js file supports an order update, detailed below!)
-      if (typeof db.updateArticlesOrder === 'function') {
-        await db.updateArticlesOrder(reorderedIds)
-      } else {
-        // Fallback: update sequentially if your db layer only has individual updates
-        let index = 0
-        for (const id of reorderedIds) {
-          await db.updateArticle(id, { sortOrder: index++ })
-        }
-      }
-
-      // 4. Re-render to cleanly recalculate page sequence warnings (status-page-warn)
-      renderArticleList()
-    }
-  })
 }
 
 // ── File upload → Stage 1 conversion ─────────────────────────────────────────
@@ -1034,6 +1007,26 @@ settingsModal.addEventListener('click', (e) => {
 })
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !settingsModal.classList.contains('hidden')) closeSettings()
+})
+
+// ── Initialize SortableJS (once) ──────────────────────────────────────────────
+
+new Sortable(articleList, {
+  handle: '.article-handle',
+  animation: 150,
+  onEnd: async () => {
+    const reorderedIds = Array.from(articleList.children).map(li => Number(li.dataset.id))
+    state.articles.sort((a, b) => reorderedIds.indexOf(a.id) - reorderedIds.indexOf(b.id))
+    if (typeof db.updateArticlesOrder === 'function') {
+      await db.updateArticlesOrder(reorderedIds)
+    } else {
+      let index = 0
+      for (const id of reorderedIds) {
+        await db.updateArticle(id, { sortOrder: index++ })
+      }
+    }
+    renderArticleList()
+  }
 })
 
 // ── Init ──────────────────────────────────────────────────────────────────────

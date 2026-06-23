@@ -99,7 +99,19 @@ export async function getArticlesByIssue(issueId) {
   const store = await tx('articles')
   const index = store.index('issueId')
   const articles = await promisify(index.getAll(issueId))
-  articles.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+
+  // Backfill sortOrder for existing articles that lack it,
+  // using their auto-increment id to preserve current relative order.
+  const toUpdate = articles.filter(a => a.sortOrder == null)
+  if (toUpdate.length > 0) {
+    const writeStore = await tx('articles', 'readwrite')
+    for (const article of toUpdate) {
+      article.sortOrder = article.id
+      await promisify(writeStore.put(article))
+    }
+  }
+
+  articles.sort((a, b) => a.sortOrder - b.sortOrder)
   return articles
 }
 
